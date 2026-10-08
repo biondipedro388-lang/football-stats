@@ -114,7 +114,7 @@ function CreatePlayer() {
           type="button"
           onClick={() => navigate("/")}
         >
-          ← Voltar
+          Voltar
         </button>
 
         <div className="brand">
@@ -234,7 +234,7 @@ function CreatePlayer() {
 
               <button className="button" type="submit">
                 Criar jogador
-                <span>→</span>
+                <span></span>
               </button>
             </div>
           </form>

@@ -24,12 +24,18 @@ export function Home() {
   return (
     <div className="page">
       <header className="header">
-        <div className="logo">
-          Football<span>Stats</span>
+        <div className="home-header-left">
+          <Link to="/" className="home-back-link">
+            Voltar
+          </Link>
+
+          <Link to="/" className="logo home-logo-link">
+            Football<span>Stats</span>
+          </Link>
         </div>
 
-        <Link to="/new-player">
-          <button className="button">+ Novo Jogador</button>
+        <Link to="/new-player" className="button">
+          + Novo Jogador
         </Link>
       </header>
 
@@ -41,8 +47,8 @@ export function Home() {
             <h3>Nenhum jogador cadastrado</h3>
             <p>Comece criando o primeiro jogador da sua carreira.</p>
 
-            <Link to="/new-player">
-              <button className="button">Cadastrar Jogador</button>
+            <Link to="/new-player" className="button">
+              Cadastrar Jogador
             </Link>
           </div>
         ) : (
@@ -59,19 +65,13 @@ export function Home() {
 
                 <div>
                   <h3 className="player-name">{player.name}</h3>
-
-                  <p className="player-info">
-                    {player.nationality}
-                  </p>
-
+                  <p className="player-info">{player.nationality}</p>
                   <div className="player-position">
                     {player.position}
                   </div>
                 </div>
 
-                <div className="player-arrow">
-                  →
-                </div>
+                <div className="player-arrow"></div>
               </Link>
             ))}
           </div>
