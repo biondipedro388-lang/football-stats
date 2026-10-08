@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs, addDoc } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
+import { Link } from "react-router-dom";
 import { db } from "../services/firebase";
 
 export function Home() {
@@ -16,40 +17,66 @@ export function Home() {
     setPlayers(playersList);
   }
 
-  async function createPlayer() {
-    await addDoc(collection(db, "players"), {
-      name: "Novo Jogador",
-      nationality: "Brasil",
-      position: "Meia",
-      overall: 75,
-      goals: 0,
-      assists: 0,
-    });
-
-    loadPlayers();
-  }
-
   useEffect(() => {
     loadPlayers();
   }, []);
 
   return (
-    <div>
-      <h1>Football Stats</h1>
-
-      <button onClick={createPlayer}>
-        Criar Jogador Teste
-      </button>
-
-      <h2>Jogadores</h2>
-
-      {players.map((player) => (
-        <div key={player.id}>
-          <h3>{player.name}</h3>
-          <p>Posição: {player.position}</p>
-          <p>Overall: {player.overall}</p>
+    <div className="page">
+      <header className="header">
+        <div className="logo">
+          Football<span>Stats</span>
         </div>
-      ))}
+
+        <Link to="/new-player">
+          <button className="button">+ Novo Jogador</button>
+        </Link>
+      </header>
+
+      <main>
+        <h2 className="section-title">Jogadores</h2>
+
+        {players.length === 0 ? (
+          <div className="empty-state">
+            <h3>Nenhum jogador cadastrado</h3>
+            <p>Comece criando o primeiro jogador da sua carreira.</p>
+
+            <Link to="/new-player">
+              <button className="button">Cadastrar Jogador</button>
+            </Link>
+          </div>
+        ) : (
+          <div className="players-grid">
+            {players.map((player) => (
+              <Link
+                to={`/player/${player.id}`}
+                key={player.id}
+                className="player-card"
+              >
+                <div className="player-avatar">
+                  {player.name?.charAt(0).toUpperCase()}
+                </div>
+
+                <div>
+                  <h3 className="player-name">{player.name}</h3>
+
+                  <p className="player-info">
+                    {player.nationality}
+                  </p>
+
+                  <div className="player-position">
+                    {player.position}
+                  </div>
+                </div>
+
+                <div className="player-arrow">
+                  →
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </main>
     </div>
   );
 }

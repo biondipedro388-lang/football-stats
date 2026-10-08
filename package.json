@@ -10,7 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "country-flag-icons": "^1.6.20",
     "firebase": "^13.0.0",
+    "lucide-react": "^1.53.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.4"
