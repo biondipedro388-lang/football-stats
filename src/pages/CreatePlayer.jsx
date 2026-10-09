@@ -118,8 +118,6 @@ function CreatePlayer() {
         </button>
 
         <div className="brand">
-          <span className="brand-icon">⚽</span>
-
           <span>
             Football<span className="brand-green">Stats</span>
           </span>

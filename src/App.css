@@ -1766,3 +1766,165 @@ button {
     font-size: 12px;
   }
 }
+
+.achievement-section {
+  margin-top: 28px;
+}
+
+.achievement-form-card {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  margin: 18px 0 24px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border-radius: 16px;
+  background: var(--card-background, rgba(255, 255, 255, 0.025));
+}
+
+.achievement-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.achievement-form-grid label {
+  display: grid;
+  gap: 8px;
+  color: var(--text-secondary, #a0a0a0);
+  font-size: 0.9rem;
+}
+
+.achievement-form-grid input,
+.achievement-form-grid select {
+  width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  color: inherit;
+  background: var(--input-background, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.14));
+  border-radius: 10px;
+  font: inherit;
+}
+
+.achievement-list {
+  display: grid;
+  gap: 12px;
+}
+
+.achievement-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border-radius: 14px;
+  background: var(--card-background, rgba(255, 255, 255, 0.025));
+}
+
+.achievement-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(76, 175, 80, 0.12);
+  font-size: 1.4rem;
+}
+
+.achievement-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.achievement-category {
+  color: #75d17b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.achievement-content h3 {
+  margin: 5px 0;
+}
+
+.achievement-details {
+  margin: 0;
+  color: var(--text-secondary, #a0a0a0);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  .achievement-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .achievement-card {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .achievement-card .season-action-button {
+    margin-left: 58px;
+  }
+}
+
+.achievement-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+
+.achievement-edit-actions .button,
+.achievement-cancel-button {
+  min-height: 44px;
+  padding: 12px 22px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.achievement-edit-actions .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.achievement-cancel-button {
+  background: transparent;
+  color: #d1d5db;
+  border: 1px solid #414957;
+}
+
+.achievement-cancel-button:hover {
+  background: #252c36;
+  border-color: #697386;
+}
+
+.achievement-edit-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.achievement-edit-page {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+@media (max-width: 600px) {
+  .achievement-edit-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .achievement-edit-actions .button,
+  .achievement-cancel-button {
+    width: 100%;
+  }
+}

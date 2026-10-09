@@ -10,6 +10,7 @@ import CreatePlayer from "../pages/CreatePlayer";
 import EditPlayer from "../pages/EditPlayer";
 import { PlayerProfile } from "../pages/PlayerProfile";
 import { AddSeason } from "../pages/AddSeason";
+import EditAchievement from "../pages/EditAchievement";
 
 function ProtectedRoute({ children }) {
   const [user, setUser] = useState(null);
@@ -96,6 +97,15 @@ export function AppRoutes() {
           element={
             <ProtectedRoute>
               <AddSeason />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/player/:id/edit-achievement/:achievementId"
+          element={
+            <ProtectedRoute>
+              <EditAchievement />
             </ProtectedRoute>
           }
         />
