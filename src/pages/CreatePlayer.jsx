@@ -1,7 +1,6 @@
-
 import { useState } from "react";
 import { addDoc, collection } from "firebase/firestore";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { db } from "../services/firebase";
 
 const countries = [
@@ -80,50 +79,61 @@ function CreatePlayer() {
   const [position, setPosition] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [preferredFoot, setPreferredFoot] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleSubmit(event) {
     event.preventDefault();
 
+    if (saving) return;
+
     if (
-      !name ||
+      !name.trim() ||
       !nationality ||
       !position ||
       !birthDate ||
       !preferredFoot
     ) {
+      setError("Preencha todos os campos antes de continuar.");
       return;
     }
 
-    await addDoc(collection(db, "players"), {
-      name: name,
-      nationality: nationality,
-      position: position,
-      birthDate: birthDate,
-      preferredFoot: preferredFoot,
-      createdAt: new Date(),
-    });
+    setSaving(true);
+    setError("");
 
-    navigate("/");
+    try {
+      const playerRef = await addDoc(collection(db, "players"), {
+        name: name.trim(),
+        nationality,
+        position,
+        birthDate,
+        preferredFoot,
+        createdAt: new Date(),
+      });
+
+      navigate(`/player/${playerRef.id}`);
+    } catch (err) {
+      console.error("Erro ao criar jogador:", err);
+      setError(
+        "Não foi possível criar o jogador. Verifique sua conexão e tente novamente."
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <div className="app">
-      <header className="topbar">
-        <button
-          className="back-button"
-          type="button"
-          onClick={() => navigate("/")}
-        >
-          Voltar
-        </button>
+    <div className="page">
+      <header className="header">
+        <div className="home-header-left">
+          <Link to="/dashboard" className="home-back-link">
+            Voltar
+          </Link>
 
-        <div className="brand">
-          <span>
-            Football<span className="brand-green">Stats</span>
-          </span>
+          <Link to="/dashboard" className="logo home-logo-link">
+            Football<span>Stats</span>
+          </Link>
         </div>
-
-        <div className="topbar-spacer"></div>
       </header>
 
       <main className="form-page">
@@ -146,24 +156,30 @@ function CreatePlayer() {
 
               <div className="form-grid">
                 <div className="form-group form-full">
-                  <label>Nome completo</label>
+                  <label htmlFor="player-name">Nome completo</label>
 
                   <input
+                    id="player-name"
                     className="input"
                     type="text"
                     placeholder="Ex: Pedro Biondi"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
+                    required
+                    disabled={saving}
                   />
                 </div>
 
                 <div className="form-group">
-                  <label>Nacionalidade</label>
+                  <label htmlFor="player-nationality">Nacionalidade</label>
 
                   <select
+                    id="player-nationality"
                     className="select"
                     value={nationality}
                     onChange={(event) => setNationality(event.target.value)}
+                    required
+                    disabled={saving}
                   >
                     <option value="">Selecione o país</option>
 
@@ -176,12 +192,15 @@ function CreatePlayer() {
                 </div>
 
                 <div className="form-group">
-                  <label>Posição</label>
+                  <label htmlFor="player-position">Posição</label>
 
                   <select
+                    id="player-position"
                     className="select"
                     value={position}
                     onChange={(event) => setPosition(event.target.value)}
+                    required
+                    disabled={saving}
                   >
                     <option value="">Selecione a posição</option>
 
@@ -194,23 +213,31 @@ function CreatePlayer() {
                 </div>
 
                 <div className="form-group">
-                  <label>Data de nascimento</label>
+                  <label htmlFor="player-birth-date">
+                    Data de nascimento
+                  </label>
 
                   <input
+                    id="player-birth-date"
                     className="input"
                     type="date"
                     value={birthDate}
                     onChange={(event) => setBirthDate(event.target.value)}
+                    required
+                    disabled={saving}
                   />
                 </div>
 
                 <div className="form-group">
-                  <label>Pé dominante</label>
+                  <label htmlFor="player-foot">Pé dominante</label>
 
                   <select
+                    id="player-foot"
                     className="select"
                     value={preferredFoot}
                     onChange={(event) => setPreferredFoot(event.target.value)}
+                    required
+                    disabled={saving}
                   >
                     <option value="">Selecione</option>
                     <option value="Direito">Direito</option>
@@ -221,18 +248,25 @@ function CreatePlayer() {
               </div>
             </div>
 
+            {error && (
+              <div className="form-error" role="alert">
+                {error}
+              </div>
+            )}
+
             <div className="form-footer">
               <button
                 className="secondary-button"
                 type="button"
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/dashboard")}
+                disabled={saving}
               >
                 Cancelar
               </button>
 
-              <button className="button" type="submit">
-                Criar jogador
-                <span></span>
+              <button className="button" type="submit" disabled={saving}>
+                {saving ? "Criando jogador..." : "Criar jogador"}
+                <span />
               </button>
             </div>
           </form>

@@ -131,6 +131,7 @@ export default function PlayerAchievements({ playerId }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [showForm, setShowForm] = useState(false);
 
   async function loadAchievements() {
     const achievementsQuery = query(
@@ -153,6 +154,8 @@ export default function PlayerAchievements({ playerId }) {
   }
 
   useEffect(() => {
+    let active = true;
+
     async function load() {
       setLoading(true);
       setError("");
@@ -161,13 +164,22 @@ export default function PlayerAchievements({ playerId }) {
         await loadAchievements();
       } catch (err) {
         console.error("Erro ao carregar conquistas:", err);
-        setError("Não foi possível carregar os títulos e as premiações.");
+
+        if (active) {
+          setError("Não foi possível carregar os títulos e as premiações.");
+        }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     }
 
     load();
+
+    return () => {
+      active = false;
+    };
   }, [playerId]);
 
   function handleChange(event) {
@@ -184,6 +196,18 @@ export default function PlayerAchievements({ playerId }) {
       ...emptyForm,
       category: event.target.value,
     });
+  }
+
+  function openForm() {
+    setForm(emptyForm);
+    setError("");
+    setShowForm(true);
+  }
+
+  function cancelForm() {
+    setForm(emptyForm);
+    setError("");
+    setShowForm(false);
   }
 
   async function handleSubmit(event) {
@@ -231,6 +255,7 @@ export default function PlayerAchievements({ playerId }) {
       await addDoc(collection(db, "achievements"), achievement);
 
       setForm(emptyForm);
+      setShowForm(false);
       await loadAchievements();
     } catch (err) {
       console.error("Erro ao adicionar conquista:", err);
@@ -281,6 +306,15 @@ export default function PlayerAchievements({ playerId }) {
           <span className="section-label">CONQUISTAS</span>
           <h2>Títulos e Premiações</h2>
         </div>
+
+        <button
+          className="button"
+          type="button"
+          onClick={showForm ? cancelForm : openForm}
+          disabled={saving}
+        >
+          {showForm ? "Cancelar" : "+ Adicionar conquista"}
+        </button>
       </div>
 
       {error && (
@@ -289,48 +323,63 @@ export default function PlayerAchievements({ playerId }) {
         </div>
       )}
 
-      <form className="achievement-form-card" onSubmit={handleSubmit}>
-        <div className="achievement-form-grid">
-          <label>
-            Tipo de conquista
-            <select
-              name="category"
-              value={form.category}
-              onChange={handleCategoryChange}
+      {showForm && (
+        <form className="achievement-form-card" onSubmit={handleSubmit}>
+          <div className="form-section-title">
+            <span>Nova conquista</span>
+          </div>
+
+          <div className="achievement-form-grid">
+            <label>
+              Tipo de conquista
+              <select
+                name="category"
+                value={form.category}
+                onChange={handleCategoryChange}
+                disabled={saving}
+              >
+                {Object.entries(achievementTypes).map(([value, type]) => (
+                  <option value={value} key={value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {achievementTypes[form.category].fields.map((field) => (
+              <label key={field.name}>
+                {field.label}
+                <input
+                  name={field.name}
+                  type={field.type || "text"}
+                  min={field.type === "number" ? "0" : undefined}
+                  step={field.type === "number" ? "1" : undefined}
+                  value={form[field.name]}
+                  onChange={handleChange}
+                  placeholder={field.placeholder}
+                  required={field.required || false}
+                  disabled={saving}
+                />
+              </label>
+            ))}
+          </div>
+
+          <div className="achievement-form-actions">
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={cancelForm}
               disabled={saving}
             >
-              {Object.entries(achievementTypes).map(([value, type]) => (
-                <option value={value} key={value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              Cancelar
+            </button>
 
-          {achievementTypes[form.category].fields.map((field) => (
-            <label key={field.name}>
-              {field.label}
-              <input
-                name={field.name}
-                type={field.type || "text"}
-                min={field.type === "number" ? "0" : undefined}
-                step={field.type === "number" ? "1" : undefined}
-                value={form[field.name]}
-                onChange={handleChange}
-                placeholder={field.placeholder}
-                required={field.required || false}
-                disabled={saving}
-              />
-            </label>
-          ))}
-        </div>
-
-        <div className="achievement-form-actions">
-          <button className="button" type="submit" disabled={saving}>
-            {saving ? "Salvando..." : "Adicionar conquista"}
-          </button>
-        </div>
-      </form>
+            <button className="button" type="submit" disabled={saving}>
+              {saving ? "Salvando..." : "Adicionar conquista"}
+            </button>
+          </div>
+        </form>
+      )}
 
       {loading ? (
         <p>Carregando conquistas...</p>

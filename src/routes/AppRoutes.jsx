@@ -9,8 +9,12 @@ import { Home } from "../pages/Home";
 import CreatePlayer from "../pages/CreatePlayer";
 import EditPlayer from "../pages/EditPlayer";
 import { PlayerProfile } from "../pages/PlayerProfile";
+import { CoachProfile } from "../pages/CoachProfile";
+import AddCoachSeason from "../pages/AddCoachSeason";
+import EditCoach from "../pages/EditCoach";
 import { AddSeason } from "../pages/AddSeason";
 import EditAchievement from "../pages/EditAchievement";
+import CreateCoach from "../pages/CreateCoach";
 
 function ProtectedRoute({ children }) {
   const [user, setUser] = useState(null);
@@ -61,6 +65,42 @@ export function AppRoutes() {
           element={
             <ProtectedRoute>
               <CreatePlayer />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/create-coach"
+          element={
+            <ProtectedRoute>
+              <CreateCoach />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/coach/:id"
+          element={
+            <ProtectedRoute>
+              <CoachProfile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/coach/:id/edit"
+          element={
+            <ProtectedRoute>
+              <EditCoach />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/coach/:id/add-season"
+          element={
+            <ProtectedRoute>
+              <AddCoachSeason />
             </ProtectedRoute>
           }
         />
