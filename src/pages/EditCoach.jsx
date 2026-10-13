@@ -56,6 +56,29 @@ const countries = [
   { name: "Venezuela", code: "VE" },
 ];
 
+const formations = [
+  "4-3-3",
+  "4-4-2",
+  "4-2-3-1",
+  "4-1-4-1",
+  "4-3-1-2",
+  "4-3-2-1",
+  "4-2-2-2",
+  "4-5-1",
+  "4-1-2-1-2",
+  "4-1-3-2",
+  "4-2-4",
+  "3-5-2",
+  "3-4-3",
+  "3-4-2-1",
+  "3-4-1-2",
+  "3-6-1",
+  "3-3-3-1",
+  "5-3-2",
+  "5-4-1",
+  "5-2-3",
+];
+
 export default function EditCoach() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -87,11 +110,14 @@ export default function EditCoach() {
           !coachDoc.exists() ||
           coachDoc.data().ownerId !== user.uid
         ) {
-          setError("Treinador não encontrado ou sem permissão para acessá-lo.");
+          setError(
+            "Treinador não encontrado ou sem permissão para acessá-lo."
+          );
           return;
         }
 
         const coach = coachDoc.data();
+
         setName(coach.name || "");
 
         const savedNationality = coach.nationality || "";
@@ -122,6 +148,7 @@ export default function EditCoach() {
       if (!active) return;
 
       if (!user) {
+        setLoading(false);
         navigate("/login", { replace: true });
         return;
       }
@@ -131,7 +158,10 @@ export default function EditCoach() {
 
     return () => {
       active = false;
-      if (unsubscribeAuth) unsubscribeAuth();
+
+      if (unsubscribeAuth) {
+        unsubscribeAuth();
+      }
     };
   }, [id, navigate]);
 
@@ -150,7 +180,7 @@ export default function EditCoach() {
       !name.trim() ||
       !nationality ||
       !birthDate ||
-      !preferredFormation.trim()
+      !preferredFormation
     ) {
       setError("Preencha todos os campos antes de salvar.");
       return;
@@ -166,7 +196,9 @@ export default function EditCoach() {
         !coachDoc.exists() ||
         coachDoc.data().ownerId !== user.uid
       ) {
-        setError("Treinador não encontrado ou sem permissão para editá-lo.");
+        setError(
+          "Treinador não encontrado ou sem permissão para editá-lo."
+        );
         setAuthorized(false);
         return;
       }
@@ -175,7 +207,7 @@ export default function EditCoach() {
         name: name.trim(),
         nationality,
         birthDate,
-        preferredFormation: preferredFormation.trim(),
+        preferredFormation,
       });
 
       navigate(`/coach/${id}`);
@@ -235,7 +267,9 @@ export default function EditCoach() {
 
         <div className="empty-state">
           <h3>Não foi possível abrir o treinador</h3>
-          <p>{error || "Você não tem permissão para acessar este perfil."}</p>
+          <p>
+            {error || "Você não tem permissão para acessar este perfil."}
+          </p>
 
           <button
             className="button"
@@ -338,17 +372,31 @@ export default function EditCoach() {
                   <label htmlFor="coach-formation">
                     Formação preferida
                   </label>
-                  <input
+
+                  <select
                     id="coach-formation"
-                    className="input"
-                    type="text"
-                    placeholder="Ex.: 4-3-3"
+                    className="select"
                     value={preferredFormation}
                     onChange={(event) =>
                       setPreferredFormation(event.target.value)
                     }
                     required
-                  />
+                  >
+                    <option value="">Selecione uma formação</option>
+
+                    {preferredFormation &&
+                      !formations.includes(preferredFormation) && (
+                        <option value={preferredFormation}>
+                          {preferredFormation} (atual)
+                        </option>
+                      )}
+
+                    {formations.map((formation) => (
+                      <option key={formation} value={formation}>
+                        {formation}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>

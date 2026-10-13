@@ -11,6 +11,7 @@ import EditPlayer from "../pages/EditPlayer";
 import { PlayerProfile } from "../pages/PlayerProfile";
 import { CoachProfile } from "../pages/CoachProfile";
 import AddCoachSeason from "../pages/AddCoachSeason";
+import EditCoachSeason from "../pages/EditCoachSeason";
 import EditCoach from "../pages/EditCoach";
 import { AddSeason } from "../pages/AddSeason";
 import EditAchievement from "../pages/EditAchievement";
@@ -101,6 +102,15 @@ export function AppRoutes() {
           element={
             <ProtectedRoute>
               <AddCoachSeason />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/coach/:id/edit-season/:seasonId"
+          element={
+            <ProtectedRoute>
+              <EditCoachSeason />
             </ProtectedRoute>
           }
         />

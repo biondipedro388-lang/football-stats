@@ -99,6 +99,97 @@ const nationalities = {
   Uruguay: "Uruguai",
 };
 
+function SeasonCard({
+  season,
+  playerId,
+  deletingSeason,
+  onDelete,
+}) {
+  const matches = Number(season.matches) || 0;
+  const goals = Number(season.goals) || 0;
+  const assists = Number(season.assists) || 0;
+  const contributions = goals + assists;
+
+  const seasonGoalsPerMatch =
+    matches > 0 ? (goals / matches).toFixed(2) : "0.00";
+
+  const seasonAssistsPerMatch =
+    matches > 0 ? (assists / matches).toFixed(2) : "0.00";
+
+  const seasonContributionsPerMatch =
+    matches > 0 ? (contributions / matches).toFixed(2) : "0.00";
+
+  return (
+    <article className="season-card">
+      <div className="season-card-header">
+        <div>
+          <span className="season-year">{season.season}</span>
+          <h3>{season.teamName}</h3>
+        </div>
+
+        <span className="season-type">
+          {season.teamType === "national" ? "SELEÇÃO" : "CLUBE"}
+        </span>
+      </div>
+
+      <div className="season-stats">
+        <div>
+          <span>Jogos</span>
+          <strong>{matches}</strong>
+        </div>
+
+        <div>
+          <span>Gols</span>
+          <strong>{goals}</strong>
+        </div>
+
+        <div>
+          <span>Assistências</span>
+          <strong>{assists}</strong>
+        </div>
+
+        <div>
+          <span>Participações em gols</span>
+          <strong>{contributions}</strong>
+        </div>
+
+        <div>
+          <span>Gols por jogo</span>
+          <strong>{seasonGoalsPerMatch}</strong>
+        </div>
+
+        <div>
+          <span>Assistências por jogo</span>
+          <strong>{seasonAssistsPerMatch}</strong>
+        </div>
+
+        <div>
+          <span>Participações por jogo</span>
+          <strong>{seasonContributionsPerMatch}</strong>
+        </div>
+      </div>
+
+      <div className="season-actions">
+        <Link
+          className="season-action-button"
+          to={`/player/${playerId}/edit-season/${season.id}`}
+        >
+          Editar
+        </Link>
+
+        <button
+          className="season-action-button delete"
+          type="button"
+          disabled={deletingSeason === season.id}
+          onClick={() => onDelete(season.id)}
+        >
+          {deletingSeason === season.id ? "Excluindo..." : "Excluir"}
+        </button>
+      </div>
+    </article>
+  );
+}
+
 export function PlayerProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -112,10 +203,7 @@ export function PlayerProfile() {
   async function loadPlayer(userId) {
     const playerDoc = await getDoc(doc(db, "players", id));
 
-    if (
-      !playerDoc.exists() ||
-      playerDoc.data().ownerId !== userId
-    ) {
+    if (!playerDoc.exists() || playerDoc.data().ownerId !== userId) {
       setPlayer(null);
       throw new Error("Jogador não encontrado ou sem permissão.");
     }
@@ -278,6 +366,14 @@ export function PlayerProfile() {
       ? (totalGoalContributions / totalMatches).toFixed(2)
       : "0.00";
 
+  const clubSeasons = seasons.filter(
+    (season) => season.teamType !== "national"
+  );
+
+  const nationalSeasons = seasons.filter(
+    (season) => season.teamType === "national"
+  );
+
   function getInitials(name) {
     if (!name) return "?";
 
@@ -384,7 +480,9 @@ export function PlayerProfile() {
       <main>
         <section className="profile-card">
           <div className="profile-top">
-            <div className="profile-avatar">{getInitials(player.name)}</div>
+            <div className="profile-avatar">
+              {getInitials(player.name)}
+            </div>
 
             <div className="profile-main">
               <span className="profile-label">PERFIL DO JOGADOR</span>
@@ -504,97 +602,69 @@ export function PlayerProfile() {
               </Link>
             </div>
           ) : (
-            <div className="seasons-list">
-              {seasons.map((season) => {
-                const matches = Number(season.matches) || 0;
-                const goals = Number(season.goals) || 0;
-                const assists = Number(season.assists) || 0;
-                const contributions = goals + assists;
+            <>
+              <div className="career-section">
+                <div className="section-header">
+                  <div>
+                    <span className="section-label">
+                      CARREIRA EM CLUBES
+                    </span>
+                    <h2>Clubes</h2>
+                  </div>
 
-                const seasonGoalsPerMatch =
-                  matches > 0 ? (goals / matches).toFixed(2) : "0.00";
+                  <span>{clubSeasons.length} temporadas</span>
+                </div>
 
-                const seasonAssistsPerMatch =
-                  matches > 0 ? (assists / matches).toFixed(2) : "0.00";
+                {clubSeasons.length === 0 ? (
+                  <div className="empty-state">
+                    <p>Nenhuma temporada por clube cadastrada.</p>
+                  </div>
+                ) : (
+                  <div className="seasons-list">
+                    {clubSeasons.map((season) => (
+                      <SeasonCard
+                        key={season.id}
+                        season={season}
+                        playerId={id}
+                        deletingSeason={deletingSeason}
+                        onDelete={handleDeleteSeason}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
 
-                const seasonContributionsPerMatch =
-                  matches > 0
-                    ? (contributions / matches).toFixed(2)
-                    : "0.00";
+              <div className="career-section">
+                <div className="section-header">
+                  <div>
+                    <span className="section-label">
+                      CARREIRA INTERNACIONAL
+                    </span>
+                    <h2>Seleções</h2>
+                  </div>
 
-                return (
-                  <article className="season-card" key={season.id}>
-                    <div className="season-card-header">
-                      <div>
-                        <span className="season-year">{season.season}</span>
-                        <h3>{season.teamName}</h3>
-                      </div>
+                  <span>{nationalSeasons.length} temporadas</span>
+                </div>
 
-                      <span className="season-type">
-                        {season.teamType === "national" ? "SELEÇÃO" : "CLUBE"}
-                      </span>
-                    </div>
-
-                    <div className="season-stats">
-                      <div>
-                        <span>Jogos</span>
-                        <strong>{matches}</strong>
-                      </div>
-
-                      <div>
-                        <span>Gols</span>
-                        <strong>{goals}</strong>
-                      </div>
-
-                      <div>
-                        <span>Assistências</span>
-                        <strong>{assists}</strong>
-                      </div>
-
-                      <div>
-                        <span>Participações em gols</span>
-                        <strong>{contributions}</strong>
-                      </div>
-
-                      <div>
-                        <span>Gols por jogo</span>
-                        <strong>{seasonGoalsPerMatch}</strong>
-                      </div>
-
-                      <div>
-                        <span>Assistências por jogo</span>
-                        <strong>{seasonAssistsPerMatch}</strong>
-                      </div>
-
-                      <div>
-                        <span>Participações por jogo</span>
-                        <strong>{seasonContributionsPerMatch}</strong>
-                      </div>
-                    </div>
-
-                    <div className="season-actions">
-                      <Link
-                        className="season-action-button"
-                        to={`/player/${id}/edit-season/${season.id}`}
-                      >
-                        Editar
-                      </Link>
-
-                      <button
-                        className="season-action-button delete"
-                        type="button"
-                        disabled={deletingSeason === season.id}
-                        onClick={() => handleDeleteSeason(season.id)}
-                      >
-                        {deletingSeason === season.id
-                          ? "Excluindo..."
-                          : "Excluir"}
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+                {nationalSeasons.length === 0 ? (
+                  <div className="empty-state">
+                    <p>Nenhuma temporada por seleção cadastrada.</p>
+                  </div>
+                ) : (
+                  <div className="seasons-list">
+                    {nationalSeasons.map((season) => (
+                      <SeasonCard
+                        key={season.id}
+                        season={season}
+                        playerId={id}
+                        deletingSeason={deletingSeason}
+                        onDelete={handleDeleteSeason}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </section>
 

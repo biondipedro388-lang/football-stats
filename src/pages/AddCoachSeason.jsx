@@ -105,7 +105,7 @@ export default function AddCoachSeason() {
     <div className="page form-page">
       <header className="header form-header">
         <Link to={`/coach/${id}`} className="back-button">
-          Voltar ao perfil
+          Voltar
         </Link>
 
         <Link to="/" className="logo">
