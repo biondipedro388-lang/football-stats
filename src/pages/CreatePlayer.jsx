@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { addDoc, collection } from "firebase/firestore";
 import { Link, useNavigate } from "react-router-dom";
-import { db } from "../services/firebase";
+import { auth, db } from "../services/firebase";
 
 const countries = [
   { name: "Afeganistão", code: "AF" },
@@ -98,11 +98,19 @@ function CreatePlayer() {
       return;
     }
 
+    const user = auth.currentUser;
+
+    if (!user) {
+      setError("Sua sessão expirou. Entre novamente na sua conta.");
+      return;
+    }
+
     setSaving(true);
     setError("");
 
     try {
       const playerRef = await addDoc(collection(db, "players"), {
+        ownerId: user.uid,
         name: name.trim(),
         nationality,
         position,

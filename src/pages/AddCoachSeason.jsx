@@ -1,7 +1,12 @@
 import { useState } from "react";
-import { addDoc, collection } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { db } from "../services/firebase";
+import { auth, db } from "../services/firebase";
 
 export default function AddCoachSeason() {
   const { id } = useParams();
@@ -21,8 +26,15 @@ export default function AddCoachSeason() {
     event.preventDefault();
     setError("");
 
+    if (saving) return;
+
     if (!season.trim() || !teamName.trim()) {
       setError("Preencha a temporada e o nome do clube ou seleção.");
+      return;
+    }
+
+    if (!["club", "national"].includes(teamType)) {
+      setError("Selecione um tipo de equipe válido.");
       return;
     }
 
@@ -35,10 +47,10 @@ export default function AddCoachSeason() {
 
     if (
       Object.values(numericFields).some(
-        (value) => !Number.isFinite(value) || value < 0
+        (value) => !Number.isInteger(value) || value < 0
       )
     ) {
-      setError("As estatísticas devem ser iguais ou maiores que zero.");
+      setError("As estatísticas devem ser números inteiros iguais ou maiores que zero.");
       return;
     }
 
@@ -50,10 +62,28 @@ export default function AddCoachSeason() {
       return;
     }
 
+    const user = auth.currentUser;
+
+    if (!user) {
+      setError("Sua sessão expirou. Entre novamente na sua conta.");
+      return;
+    }
+
+    setSaving(true);
+
     try {
-      setSaving(true);
+      const coachSnap = await getDoc(doc(db, "coaches", id));
+
+      if (
+        !coachSnap.exists() ||
+        coachSnap.data().ownerId !== user.uid
+      ) {
+        setError("Treinador não encontrado ou sem permissão.");
+        return;
+      }
 
       await addDoc(collection(db, "coachSeasons"), {
+        ownerId: user.uid,
         coachId: id,
         season: season.trim(),
         teamName: teamName.trim(),
@@ -65,7 +95,7 @@ export default function AddCoachSeason() {
       navigate(`/coach/${id}`);
     } catch (err) {
       console.error("Erro ao salvar temporada do treinador:", err);
-      setError("Não foi possível salvar a temporada. Tente novamente.");
+      setError("Não foi possível salvar a temporada. Verifique sua sessão e tente novamente.");
     } finally {
       setSaving(false);
     }
@@ -108,6 +138,7 @@ export default function AddCoachSeason() {
                   value={season}
                   onChange={(event) => setSeason(event.target.value)}
                   required
+                  disabled={saving}
                 />
               </div>
 
@@ -121,6 +152,7 @@ export default function AddCoachSeason() {
                   value={teamName}
                   onChange={(event) => setTeamName(event.target.value)}
                   required
+                  disabled={saving}
                 />
               </div>
 
@@ -131,6 +163,7 @@ export default function AddCoachSeason() {
                   className="input"
                   value={teamType}
                   onChange={(event) => setTeamType(event.target.value)}
+                  disabled={saving}
                 >
                   <option value="club">Clube</option>
                   <option value="national">Seleção</option>
@@ -150,8 +183,10 @@ export default function AddCoachSeason() {
                   className="input"
                   type="number"
                   min="0"
+                  step="1"
                   value={matches}
                   onChange={(event) => setMatches(event.target.value)}
+                  disabled={saving}
                 />
               </div>
 
@@ -162,8 +197,10 @@ export default function AddCoachSeason() {
                   className="input"
                   type="number"
                   min="0"
+                  step="1"
                   value={wins}
                   onChange={(event) => setWins(event.target.value)}
+                  disabled={saving}
                 />
               </div>
 
@@ -174,8 +211,10 @@ export default function AddCoachSeason() {
                   className="input"
                   type="number"
                   min="0"
+                  step="1"
                   value={draws}
                   onChange={(event) => setDraws(event.target.value)}
+                  disabled={saving}
                 />
               </div>
 
@@ -186,8 +225,10 @@ export default function AddCoachSeason() {
                   className="input"
                   type="number"
                   min="0"
+                  step="1"
                   value={losses}
                   onChange={(event) => setLosses(event.target.value)}
+                  disabled={saving}
                 />
               </div>
             </div>

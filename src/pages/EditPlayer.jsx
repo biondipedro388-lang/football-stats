@@ -4,8 +4,9 @@ import {
   getDoc,
   updateDoc,
 } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { useNavigate, useParams } from "react-router-dom";
-import { db } from "../services/firebase";
+import { auth, db } from "../services/firebase";
 
 const countries = [
   { name: "Afeganistão", code: "AF" },
@@ -87,14 +88,28 @@ export default function EditPlayer() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
-    async function loadPlayer() {
-      try {
-        const playerDoc = await getDoc(doc(db, "players", id));
+    let active = true;
+    let unsubscribeAuth;
 
-        if (!playerDoc.exists()) {
-          setError("Jogador não encontrado.");
+    async function loadPlayer(user) {
+      setLoading(true);
+      setError("");
+      setAuthorized(false);
+
+      try {
+        const playerRef = doc(db, "players", id);
+        const playerDoc = await getDoc(playerRef);
+
+        if (!active) return;
+
+        if (
+          !playerDoc.exists() ||
+          playerDoc.data().ownerId !== user.uid
+        ) {
+          setError("Jogador não encontrado ou sem permissão para acessá-lo.");
           return;
         }
 
@@ -105,20 +120,47 @@ export default function EditPlayer() {
         setPosition(player.position || "");
         setBirthDate(player.birthDate || "");
         setPreferredFoot(player.preferredFoot || "");
+        setAuthorized(true);
       } catch (err) {
         console.error("Erro ao carregar jogador:", err);
-        setError("Não foi possível carregar os dados do jogador.");
+
+        if (active) {
+          setError("Não foi possível carregar os dados do jogador.");
+        }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     }
 
-    loadPlayer();
-  }, [id]);
+    unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (!active) return;
+
+      if (!user) {
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      loadPlayer(user);
+    });
+
+    return () => {
+      active = false;
+      if (unsubscribeAuth) unsubscribeAuth();
+    };
+  }, [id, navigate]);
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
+
+    const user = auth.currentUser;
+
+    if (!user) {
+      navigate("/login", { replace: true });
+      return;
+    }
 
     if (
       !name.trim() ||
@@ -137,8 +179,12 @@ export default function EditPlayer() {
       const playerRef = doc(db, "players", id);
       const playerDoc = await getDoc(playerRef);
 
-      if (!playerDoc.exists()) {
-        setError("Esse jogador não existe mais.");
+      if (
+        !playerDoc.exists() ||
+        playerDoc.data().ownerId !== user.uid
+      ) {
+        setError("Jogador não encontrado ou sem permissão para editá-lo.");
+        setAuthorized(false);
         return;
       }
 
@@ -181,6 +227,41 @@ export default function EditPlayer() {
         <div className="empty-state">
           <h3>Carregando jogador...</h3>
           <p>Aguarde enquanto buscamos as informações.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authorized) {
+    return (
+      <div className="page">
+        <header className="header">
+          <button
+            className="back-button"
+            type="button"
+            onClick={() => navigate("/dashboard")}
+          >
+            Voltar
+          </button>
+
+          <div className="logo">
+            Football<span>Stats</span>
+          </div>
+
+          <div className="topbar-spacer"></div>
+        </header>
+
+        <div className="empty-state">
+          <h3>Não foi possível abrir o jogador</h3>
+          <p>{error || "Você não tem permissão para acessar este perfil."}</p>
+
+          <button
+            className="button"
+            type="button"
+            onClick={() => navigate("/dashboard")}
+          >
+            Voltar ao dashboard
+          </button>
         </div>
       </div>
     );
@@ -248,7 +329,7 @@ export default function EditPlayer() {
                     <option value="">Selecione o país</option>
 
                     {countries.map((country) => (
-                      <option key={country.code} value={country.code}>
+                      <option key={country.name} value={country.code}>
                         {country.name}
                       </option>
                     ))}

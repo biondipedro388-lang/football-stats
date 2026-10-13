@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { addDoc, collection } from "firebase/firestore";
-import { db } from "../services/firebase";
+import { auth, db } from "../services/firebase";
 
 export default function CreateCoach() {
   const navigate = useNavigate();
@@ -22,10 +22,18 @@ export default function CreateCoach() {
       return;
     }
 
+    const user = auth.currentUser;
+
+    if (!user) {
+      setError("Sua sessão expirou. Entre novamente na sua conta.");
+      return;
+    }
+
     try {
       setSaving(true);
 
       await addDoc(collection(db, "coaches"), {
+        ownerId: user.uid,
         name: name.trim(),
         nationality: nationality.trim(),
         birthDate,

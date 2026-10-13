@@ -4,12 +4,13 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   query,
   updateDoc,
   where,
 } from "firebase/firestore";
-import { db } from "../services/firebase";
+import { auth, db } from "../services/firebase";
 
 const achievementTypes = {
   club: {
@@ -108,9 +109,33 @@ export default function CoachAchievements({ coachId }) {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
 
+  async function verifyCoachOwnership(userId) {
+    const coachSnap = await getDoc(doc(db, "coaches", coachId));
+
+    return (
+      coachSnap.exists() &&
+      coachSnap.data().ownerId === userId
+    );
+  }
+
   async function loadAchievements() {
+    const user = auth.currentUser;
+
+    if (!user) {
+      setAchievements([]);
+      return;
+    }
+
+    const hasAccess = await verifyCoachOwnership(user.uid);
+
+    if (!hasAccess) {
+      setAchievements([]);
+      throw new Error("Treinador não encontrado ou sem permissão.");
+    }
+
     const achievementsQuery = query(
       collection(db, "coachAchievements"),
+      where("ownerId", "==", user.uid),
       where("coachId", "==", coachId)
     );
 
@@ -209,6 +234,20 @@ export default function CoachAchievements({ coachId }) {
     setSaving(true);
     setError("");
 
+    const user = auth.currentUser;
+
+    if (!user) {
+      setError("Sua sessão expirou. Entre novamente na sua conta.");
+      setSaving(false);
+      return;
+    }
+
+    if (!achievementTypes[form.category]) {
+      setError("Selecione um tipo de conquista válido.");
+      setSaving(false);
+      return;
+    }
+
     const achievement = {
       coachId,
       category: form.category,
@@ -229,18 +268,44 @@ export default function CoachAchievements({ coachId }) {
     }
 
     try {
-      if (editingId) {
-        await updateDoc(
-          doc(db, "coachAchievements", editingId),
-          achievement
-        );
-      } else {
-        achievement.createdAt = new Date().toISOString();
+      const hasAccess = await verifyCoachOwnership(user.uid);
 
-        await addDoc(
-          collection(db, "coachAchievements"),
-          achievement
+      if (!hasAccess) {
+        setError("Você não tem permissão para alterar este treinador.");
+        return;
+      }
+
+      if (editingId) {
+        const achievementRef = doc(
+          db,
+          "coachAchievements",
+          editingId
         );
+
+        const achievementSnap = await getDoc(achievementRef);
+
+        if (!achievementSnap.exists()) {
+          setError("Título não encontrado.");
+          return;
+        }
+
+        const existing = achievementSnap.data();
+
+        if (
+          existing.ownerId !== user.uid ||
+          existing.coachId !== coachId
+        ) {
+          setError("Você não tem permissão para editar este título.");
+          return;
+        }
+
+        await updateDoc(achievementRef, achievement);
+      } else {
+        await addDoc(collection(db, "coachAchievements"), {
+          ...achievement,
+          ownerId: user.uid,
+          createdAt: new Date().toISOString(),
+        });
       }
 
       await loadAchievements();
@@ -264,10 +329,41 @@ export default function CoachAchievements({ coachId }) {
 
     if (!confirmed) return;
 
+    const user = auth.currentUser;
+
+    if (!user) {
+      setError("Sua sessão expirou. Entre novamente na sua conta.");
+      return;
+    }
+
     setError("");
+    setSaving(true);
 
     try {
-      await deleteDoc(doc(db, "coachAchievements", achievementId));
+      const achievementRef = doc(
+        db,
+        "coachAchievements",
+        achievementId
+      );
+
+      const achievementSnap = await getDoc(achievementRef);
+
+      if (!achievementSnap.exists()) {
+        setError("Título não encontrado.");
+        return;
+      }
+
+      const existing = achievementSnap.data();
+
+      if (
+        existing.ownerId !== user.uid ||
+        existing.coachId !== coachId
+      ) {
+        setError("Você não tem permissão para excluir este título.");
+        return;
+      }
+
+      await deleteDoc(achievementRef);
       await loadAchievements();
 
       if (editingId === achievementId) {
@@ -276,6 +372,8 @@ export default function CoachAchievements({ coachId }) {
     } catch (err) {
       console.error("Erro ao excluir título do treinador:", err);
       setError("Não foi possível excluir este título.");
+    } finally {
+      setSaving(false);
     }
   }
 

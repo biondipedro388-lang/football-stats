@@ -6,8 +6,9 @@ import {
   getDoc,
   updateDoc,
 } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { useNavigate, useParams } from "react-router-dom";
-import { db } from "../services/firebase";
+import { auth, db } from "../services/firebase";
 
 export function AddSeason() {
   const { id, seasonId } = useParams();
@@ -21,47 +22,110 @@ export function AddSeason() {
   const [goals, setGoals] = useState("");
   const [assists, setAssists] = useState("");
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(isEditing);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
-    async function loadSeason() {
-      if (!seasonId) return;
+    let active = true;
+    let unsubscribeAuth;
+
+    async function loadSeason(user) {
+      setLoading(true);
+      setError("");
+      setAuthorized(false);
 
       try {
-        const seasonRef = doc(db, "seasons", seasonId);
-        const seasonSnap = await getDoc(seasonRef);
+        const playerSnap = await getDoc(doc(db, "players", id));
 
-        if (!seasonSnap.exists() || seasonSnap.data().playerId !== id) {
-          setError("Temporada não encontrada.");
+        if (!active) return;
+
+        if (
+          !playerSnap.exists() ||
+          playerSnap.data().ownerId !== user.uid
+        ) {
+          setError("Jogador não encontrado ou sem permissão.");
           return;
         }
 
-        const data = seasonSnap.data();
+        if (isEditing) {
+          const seasonRef = doc(db, "seasons", seasonId);
+          const seasonSnap = await getDoc(seasonRef);
 
-        setSeason(data.season || "");
-        setTeamType(data.teamType || "club");
-        setTeamName(data.teamName || "");
-        setMatches(String(data.matches ?? ""));
-        setGoals(String(data.goals ?? ""));
-        setAssists(String(data.assists ?? ""));
-      } catch (error) {
-        console.error("Erro ao carregar temporada:", error);
-        setError("Não foi possível carregar a temporada.");
+          if (!active) return;
+
+          if (!seasonSnap.exists()) {
+            setError("Temporada não encontrada.");
+            return;
+          }
+
+          const data = seasonSnap.data();
+
+          if (
+            data.playerId !== id ||
+            data.ownerId !== user.uid
+          ) {
+            setError("Temporada não encontrada ou sem permissão.");
+            return;
+          }
+
+          setSeason(data.season || "");
+          setTeamType(data.teamType || "club");
+          setTeamName(data.teamName || "");
+          setMatches(String(data.matches ?? ""));
+          setGoals(String(data.goals ?? ""));
+          setAssists(String(data.assists ?? ""));
+        }
+
+        setAuthorized(true);
+      } catch (err) {
+        console.error("Erro ao carregar temporada:", err);
+
+        if (active) {
+          setError("Não foi possível carregar os dados da temporada.");
+        }
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     }
 
-    loadSeason();
-  }, [id, seasonId]);
+    unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (!active) return;
+
+      if (!user) {
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      loadSeason(user);
+    });
+
+    return () => {
+      active = false;
+      if (unsubscribeAuth) unsubscribeAuth();
+    };
+  }, [id, seasonId, isEditing, navigate]);
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
 
+    if (saving) return;
+
+    const user = auth.currentUser;
+
+    if (!user) {
+      navigate("/login", { replace: true });
+      return;
+    }
+
     if (!season.trim() || !teamName.trim()) {
       setError("Preencha a temporada e o nome da equipe.");
+      return;
+    }
+
+    if (!["club", "national"].includes(teamType)) {
+      setError("Selecione um tipo de equipe válido.");
       return;
     }
 
@@ -69,7 +133,8 @@ export function AddSeason() {
 
     if (
       numbers.some(
-        (value) => value !== "" &&
+        (value) =>
+          value !== "" &&
           (!Number.isInteger(Number(value)) || Number(value) < 0)
       )
     ) {
@@ -81,7 +146,7 @@ export function AddSeason() {
 
     const seasonData = {
       season: season.trim(),
-      teamType: teamType,
+      teamType,
       teamName: teamName.trim(),
       matches: Number(matches) || 0,
       goals: Number(goals) || 0,
@@ -89,29 +154,53 @@ export function AddSeason() {
     };
 
     try {
+      const playerSnap = await getDoc(doc(db, "players", id));
+
+      if (
+        !playerSnap.exists() ||
+        playerSnap.data().ownerId !== user.uid
+      ) {
+        setError("Jogador não encontrado ou sem permissão.");
+        setAuthorized(false);
+        return;
+      }
+
       if (isEditing) {
         const seasonRef = doc(db, "seasons", seasonId);
         const seasonSnap = await getDoc(seasonRef);
 
-        if (!seasonSnap.exists() || seasonSnap.data().playerId !== id) {
+        if (!seasonSnap.exists()) {
           setError("Temporada não encontrada.");
-          setSaving(false);
+          setAuthorized(false);
+          return;
+        }
+
+        const existingSeason = seasonSnap.data();
+
+        if (
+          existingSeason.playerId !== id ||
+          existingSeason.ownerId !== user.uid
+        ) {
+          setError("Temporada não encontrada ou sem permissão.");
+          setAuthorized(false);
           return;
         }
 
         await updateDoc(seasonRef, seasonData);
       } else {
         await addDoc(collection(db, "seasons"), {
+          ownerId: user.uid,
           playerId: id,
           ...seasonData,
           createdAt: new Date(),
         });
       }
 
-      navigate("/player/" + id);
-    } catch (error) {
-      console.error("Erro ao salvar temporada:", error);
-      setError("Não foi possível salvar. Tente novamente.");
+      navigate(`/player/${id}`);
+    } catch (err) {
+      console.error("Erro ao salvar temporada:", err);
+      setError("Não foi possível salvar. Verifique sua sessão e tente novamente.");
+    } finally {
       setSaving(false);
     }
   }
@@ -126,15 +215,33 @@ export function AddSeason() {
     );
   }
 
+  if (!authorized) {
+    return (
+      <div className="page">
+        <div className="empty-state">
+          <h3>Não foi possível abrir esta temporada</h3>
+          <p>{error || "Jogador ou temporada não encontrados."}</p>
+          <button
+            className="button"
+            type="button"
+            onClick={() => navigate("/dashboard")}
+          >
+            Voltar ao dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page form-page">
       <header className="header">
         <button
           className="back-button"
           type="button"
-          onClick={() => navigate("/player/" + id)}
+          onClick={() => navigate(`/player/${id}`)}
         >
-           Voltar
+          Voltar
         </button>
 
         <div className="logo">
@@ -174,6 +281,7 @@ export function AddSeason() {
                     value={season}
                     onChange={(event) => setSeason(event.target.value)}
                     required
+                    disabled={saving}
                   />
                 </div>
 
@@ -183,6 +291,7 @@ export function AddSeason() {
                     className="select"
                     value={teamType}
                     onChange={(event) => setTeamType(event.target.value)}
+                    disabled={saving}
                   >
                     <option value="club">Clube</option>
                     <option value="national">Seleção</option>
@@ -202,6 +311,7 @@ export function AddSeason() {
                     value={teamName}
                     onChange={(event) => setTeamName(event.target.value)}
                     required
+                    disabled={saving}
                   />
                 </div>
 
@@ -215,6 +325,7 @@ export function AddSeason() {
                     placeholder="0"
                     value={matches}
                     onChange={(event) => setMatches(event.target.value)}
+                    disabled={saving}
                   />
                 </div>
 
@@ -228,6 +339,7 @@ export function AddSeason() {
                     placeholder="0"
                     value={goals}
                     onChange={(event) => setGoals(event.target.value)}
+                    disabled={saving}
                   />
                 </div>
 
@@ -241,18 +353,24 @@ export function AddSeason() {
                     placeholder="0"
                     value={assists}
                     onChange={(event) => setAssists(event.target.value)}
+                    disabled={saving}
                   />
                 </div>
               </div>
             </div>
 
-            {error && <p className="form-error">{error}</p>}
+            {error && (
+              <p className="form-error" role="alert">
+                {error}
+              </p>
+            )}
 
             <div className="form-footer">
               <button
                 className="secondary-button"
                 type="button"
-                onClick={() => navigate("/player/" + id)}
+                onClick={() => navigate(`/player/${id}`)}
+                disabled={saving}
               >
                 Cancelar
               </button>

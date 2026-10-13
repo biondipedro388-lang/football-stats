@@ -4,114 +4,51 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   query,
   where,
 } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { Link } from "react-router-dom";
-import { db } from "../services/firebase";
+import { auth, db } from "../services/firebase";
 
 const achievementTypes = {
   club: {
     label: "Título por clube",
     icon: "🏆",
     fields: [
-      {
-        name: "name",
-        label: "Nome do título",
-        placeholder: "Ex.: Campeão Brasileiro",
-        required: true,
-      },
-      {
-        name: "teamName",
-        label: "Clube",
-        placeholder: "Ex.: Palmeiras",
-        required: true,
-      },
-      {
-        name: "season",
-        label: "Temporada/ano",
-        placeholder: "Ex.: 2025",
-        required: true,
-      },
-      {
-        name: "competition",
-        label: "Competição (opcional)",
-        placeholder: "Ex.: Campeonato Brasileiro",
-      },
+      { name: "name", label: "Nome do título", placeholder: "Ex.: Campeão Brasileiro", required: true },
+      { name: "teamName", label: "Clube", placeholder: "Ex.: Palmeiras", required: true },
+      { name: "season", label: "Temporada/ano", placeholder: "Ex.: 2025", required: true },
+      { name: "competition", label: "Competição (opcional)", placeholder: "Ex.: Campeonato Brasileiro" },
     ],
   },
   national: {
     label: "Título pela seleção",
     icon: "🌎",
     fields: [
-      {
-        name: "name",
-        label: "Nome do título",
-        placeholder: "Ex.: Campeão da Copa América",
-        required: true,
-      },
-      {
-        name: "teamName",
-        label: "Seleção",
-        placeholder: "Ex.: Brasil",
-        required: true,
-      },
-      {
-        name: "season",
-        label: "Temporada/ano",
-        placeholder: "Ex.: 2024",
-        required: true,
-      },
+      { name: "name", label: "Nome do título", placeholder: "Ex.: Campeão da Copa América", required: true },
+      { name: "teamName", label: "Seleção", placeholder: "Ex.: Brasil", required: true },
+      { name: "season", label: "Temporada/ano", placeholder: "Ex.: 2024", required: true },
     ],
   },
   individual: {
     label: "Prêmio individual",
     icon: "🥇",
     fields: [
-      {
-        name: "name",
-        label: "Nome do prêmio",
-        placeholder: "Ex.: Melhor Jogador do Campeonato",
-        required: true,
-      },
-      {
-        name: "competition",
-        label: "Competição/evento",
-        placeholder: "Ex.: Bola de Ouro",
-        required: true,
-      },
-      {
-        name: "season",
-        label: "Ano",
-        placeholder: "Ex.: 2025",
-        required: true,
-      },
+      { name: "name", label: "Nome do prêmio", placeholder: "Ex.: Melhor Jogador do Campeonato", required: true },
+      { name: "competition", label: "Competição/evento", placeholder: "Ex.: Bola de Ouro", required: true },
+      { name: "season", label: "Ano", placeholder: "Ex.: 2025", required: true },
     ],
   },
   topScorer: {
     label: "Artilharia",
     icon: "⚽",
     fields: [
-      {
-        name: "competition",
-        label: "Competição/evento",
-        placeholder: "Ex.: Champions League",
-        required: true,
-      },
-      {
-        name: "season",
-        label: "Temporada/ano",
-        placeholder: "Ex.: 2025/26",
-        required: true,
-      },
-      {
-        name: "goals",
-        label: "Quantidade de gols",
-        placeholder: "Ex.: 12",
-        type: "number",
-        required: true,
-      },
+      { name: "competition", label: "Competição/evento", placeholder: "Ex.: Champions League", required: true },
+      { name: "season", label: "Temporada/ano", placeholder: "Ex.: 2025/26", required: true },
+      { name: "goals", label: "Quantidade de gols", placeholder: "Ex.: 12", type: "number", required: true },
     ],
   },
 };
@@ -132,10 +69,28 @@ export default function PlayerAchievements({ playerId }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
 
-  async function loadAchievements() {
+  async function loadAchievements(currentUser = auth.currentUser) {
+    if (!currentUser) {
+      setAchievements([]);
+      return;
+    }
+
+    const playerSnap = await getDoc(doc(db, "players", playerId));
+
+    if (
+      !playerSnap.exists() ||
+      playerSnap.data().ownerId !== currentUser.uid
+    ) {
+      setAchievements([]);
+      throw new Error("Jogador não encontrado ou sem permissão.");
+    }
+
     const achievementsQuery = query(
       collection(db, "achievements"),
+      where("ownerId", "==", currentUser.uid),
       where("playerId", "==", playerId)
     );
 
@@ -154,24 +109,73 @@ export default function PlayerAchievements({ playerId }) {
   }
 
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthReady(true);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
     let active = true;
 
     async function load() {
+      if (!authReady) return;
+
       setLoading(true);
       setError("");
 
+      if (!user) {
+        setAchievements([]);
+        setError("Entre na sua conta para visualizar as conquistas.");
+        setLoading(false);
+        return;
+      }
+
       try {
-        await loadAchievements();
+        const playerSnap = await getDoc(doc(db, "players", playerId));
+
+        if (!active) return;
+
+        if (
+          !playerSnap.exists() ||
+          playerSnap.data().ownerId !== user.uid
+        ) {
+          setAchievements([]);
+          setError("Jogador não encontrado ou sem permissão.");
+          setLoading(false);
+          return;
+        }
+
+        const achievementsQuery = query(
+          collection(db, "achievements"),
+          where("ownerId", "==", user.uid),
+          where("playerId", "==", playerId)
+        );
+
+        const snapshot = await getDocs(achievementsQuery);
+
+        if (!active) return;
+
+        const data = snapshot.docs.map((item) => ({
+          id: item.id,
+          ...item.data(),
+        }));
+
+        data.sort((a, b) =>
+          String(b.season || "").localeCompare(String(a.season || ""))
+        );
+
+        setAchievements(data);
       } catch (err) {
         console.error("Erro ao carregar conquistas:", err);
 
         if (active) {
-          setError("Não foi possível carregar os títulos e as premiações.");
+          setError("Não foi possível carregar as conquistas deste jogador.");
         }
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     }
 
@@ -180,7 +184,7 @@ export default function PlayerAchievements({ playerId }) {
     return () => {
       active = false;
     };
-  }, [playerId]);
+  }, [playerId, user, authReady]);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -218,7 +222,22 @@ export default function PlayerAchievements({ playerId }) {
     setSaving(true);
     setError("");
 
+    const currentUser = auth.currentUser;
+
+    if (!currentUser) {
+      setError("Sua sessão expirou. Entre novamente na sua conta.");
+      setSaving(false);
+      return;
+    }
+
+    if (!achievementTypes[form.category]) {
+      setError("Selecione um tipo de conquista válido.");
+      setSaving(false);
+      return;
+    }
+
     const achievement = {
+      ownerId: currentUser.uid,
       playerId,
       category: form.category,
     };
@@ -250,13 +269,23 @@ export default function PlayerAchievements({ playerId }) {
     }
 
     try {
+      const playerSnap = await getDoc(doc(db, "players", playerId));
+
+      if (
+        !playerSnap.exists() ||
+        playerSnap.data().ownerId !== currentUser.uid
+      ) {
+        setError("Jogador não encontrado ou sem permissão.");
+        return;
+      }
+
       achievement.createdAt = new Date().toISOString();
 
       await addDoc(collection(db, "achievements"), achievement);
 
       setForm(emptyForm);
       setShowForm(false);
-      await loadAchievements();
+      await loadAchievements(currentUser);
     } catch (err) {
       console.error("Erro ao adicionar conquista:", err);
       setError(
@@ -274,11 +303,36 @@ export default function PlayerAchievements({ playerId }) {
 
     if (!confirmed) return;
 
+    const currentUser = auth.currentUser;
+
+    if (!currentUser) {
+      setError("Sua sessão expirou. Entre novamente na sua conta.");
+      return;
+    }
+
     setError("");
 
     try {
-      await deleteDoc(doc(db, "achievements", achievementId));
-      await loadAchievements();
+      const achievementRef = doc(db, "achievements", achievementId);
+      const achievementSnap = await getDoc(achievementRef);
+
+      if (!achievementSnap.exists()) {
+        setError("Conquista não encontrada.");
+        return;
+      }
+
+      const data = achievementSnap.data();
+
+      if (
+        data.ownerId !== currentUser.uid ||
+        data.playerId !== playerId
+      ) {
+        setError("Você não tem permissão para excluir esta conquista.");
+        return;
+      }
+
+      await deleteDoc(achievementRef);
+      await loadAchievements(currentUser);
     } catch (err) {
       console.error("Erro ao excluir conquista:", err);
       setError("Não foi possível excluir esta conquista.");
@@ -311,7 +365,7 @@ export default function PlayerAchievements({ playerId }) {
           className="button"
           type="button"
           onClick={showForm ? cancelForm : openForm}
-          disabled={saving}
+          disabled={saving || !user}
         >
           {showForm ? "Cancelar" : "+ Adicionar conquista"}
         </button>
@@ -404,10 +458,7 @@ export default function PlayerAchievements({ playerId }) {
                 </div>
 
                 <div className="achievement-content">
-                  <span className="achievement-category">
-                    {type.label}
-                  </span>
-
+                  <span className="achievement-category">{type.label}</span>
                   <h3>{title}</h3>
 
                   {getDescription(item) && (

@@ -7,8 +7,9 @@ import {
   query,
   where,
 } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { db } from "../services/firebase";
+import { auth, db } from "../services/firebase";
 import CoachAchievements from "../components/CoachAchievements";
 
 export function CoachProfile() {
@@ -22,26 +23,36 @@ export function CoachProfile() {
 
   useEffect(() => {
     let active = true;
+    let unsubscribeAuth;
 
-    async function loadProfile() {
+    async function loadProfile(user) {
       setLoading(true);
       setError("");
+      setCoach(null);
+      setSeasons([]);
 
       try {
         const coachDoc = await getDoc(doc(db, "coaches", id));
 
         if (!active) return;
 
-        if (!coachDoc.exists()) {
+        if (
+          !coachDoc.exists() ||
+          coachDoc.data().ownerId !== user.uid
+        ) {
           setCoach(null);
           setSeasons([]);
           return;
         }
 
-        setCoach({ id: coachDoc.id, ...coachDoc.data() });
+        const coachData = {
+          id: coachDoc.id,
+          ...coachDoc.data(),
+        };
 
         const seasonsQuery = query(
           collection(db, "coachSeasons"),
+          where("ownerId", "==", user.uid),
           where("coachId", "==", id)
         );
 
@@ -58,6 +69,7 @@ export function CoachProfile() {
           String(b.season || "").localeCompare(String(a.season || ""))
         );
 
+        setCoach(coachData);
         setSeasons(seasonsData);
       } catch (err) {
         console.error("Erro ao carregar perfil do treinador:", err);
@@ -72,12 +84,22 @@ export function CoachProfile() {
       }
     }
 
-    loadProfile();
+    unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (!active) return;
+
+      if (!user) {
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      loadProfile(user);
+    });
 
     return () => {
       active = false;
+      if (unsubscribeAuth) unsubscribeAuth();
     };
-  }, [id]);
+  }, [id, navigate]);
 
   function getInitials(name) {
     if (!name) return "?";
@@ -101,25 +123,71 @@ export function CoachProfile() {
     return parsedDate.toLocaleDateString("pt-BR");
   }
 
+  function formatPercentage(value) {
+    return `${value.toLocaleString("pt-BR", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    })}%`;
+  }
+
+  function getSeasonStats(season) {
+    const matches = Math.max(0, Number(season.matches) || 0);
+    const wins = Math.max(0, Number(season.wins) || 0);
+    const draws = Math.max(0, Number(season.draws) || 0);
+    const losses = Math.max(0, Number(season.losses) || 0);
+    const playedMatches = wins + draws + losses;
+    const points = wins * 3 + draws;
+
+    const winPercentage =
+      playedMatches > 0 ? (wins / playedMatches) * 100 : 0;
+
+    const pointsPercentage =
+      playedMatches > 0 ? (points / (playedMatches * 3)) * 100 : 0;
+
+    return {
+      matches,
+      wins,
+      draws,
+      losses,
+      playedMatches,
+      points,
+      winPercentage,
+      pointsPercentage,
+    };
+  }
+
   const totalMatches = seasons.reduce(
-    (total, season) => total + (Number(season.matches) || 0),
+    (total, season) => total + getSeasonStats(season).matches,
     0
   );
 
   const totalWins = seasons.reduce(
-    (total, season) => total + (Number(season.wins) || 0),
+    (total, season) => total + getSeasonStats(season).wins,
     0
   );
 
   const totalDraws = seasons.reduce(
-    (total, season) => total + (Number(season.draws) || 0),
+    (total, season) => total + getSeasonStats(season).draws,
     0
   );
 
   const totalLosses = seasons.reduce(
-    (total, season) => total + (Number(season.losses) || 0),
+    (total, season) => total + getSeasonStats(season).losses,
     0
   );
+
+  const totalPlayedMatches = totalWins + totalDraws + totalLosses;
+  const totalPoints = totalWins * 3 + totalDraws;
+
+  const overallPointsPercentage =
+    totalPlayedMatches > 0
+      ? (totalPoints / (totalPlayedMatches * 3)) * 100
+      : 0;
+
+  const overallWinPercentage =
+    totalPlayedMatches > 0
+      ? (totalWins / totalPlayedMatches) * 100
+      : 0;
 
   if (loading) {
     return (
@@ -147,18 +215,25 @@ export function CoachProfile() {
           </Link>
         </header>
 
-        <div className="empty-state">
-          <h3>Treinador não encontrado</h3>
-          <p>Esse treinador não existe ou não está mais cadastrado.</p>
+        {error ? (
+          <div className="empty-state">
+            <h3>Não foi possível carregar o perfil</h3>
+            <p>{error}</p>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <h3>Treinador não encontrado</h3>
+            <p>Esse treinador não existe ou não está mais cadastrado.</p>
+          </div>
+        )}
 
-          <button
-            className="button"
-            type="button"
-            onClick={() => navigate("/dashboard")}
-          >
-            Voltar ao dashboard
-          </button>
-        </div>
+        <button
+          className="button"
+          type="button"
+          onClick={() => navigate("/dashboard")}
+        >
+          Voltar ao dashboard
+        </button>
       </div>
     );
   }
@@ -226,9 +301,7 @@ export function CoachProfile() {
 
             <div className="profile-info-box">
               <span>FORMAÇÃO PREFERIDA</span>
-              <strong>
-                {coach.preferredFormation || "Não informada"}
-              </strong>
+              <strong>{coach.preferredFormation || "Não informada"}</strong>
             </div>
 
             <div className="profile-info-box">
@@ -253,8 +326,13 @@ export function CoachProfile() {
             </div>
 
             <div className="stat-card">
-              <span>JOGOS</span>
+              <span>JOGOS CADASTRADOS</span>
               <strong>{totalMatches}</strong>
+            </div>
+
+            <div className="stat-card">
+              <span>JOGOS COM RESULTADO</span>
+              <strong>{totalPlayedMatches}</strong>
             </div>
 
             <div className="stat-card">
@@ -271,7 +349,23 @@ export function CoachProfile() {
               <span>DERROTAS</span>
               <strong>{totalLosses}</strong>
             </div>
+
+            <div className="stat-card">
+              <span>APROVEITAMENTO</span>
+              <strong>{formatPercentage(overallPointsPercentage)}</strong>
+            </div>
+
+            <div className="stat-card">
+              <span>TAXA DE VITÓRIAS</span>
+              <strong>{formatPercentage(overallWinPercentage)}</strong>
+            </div>
           </div>
+
+          <p className="section-label" style={{ marginTop: "12px" }}>
+            O aproveitamento considera 3 pontos por vitória, 1 por empate e 0
+            por derrota. Os percentuais usam apenas jogos com resultado
+            registrado.
+          </p>
         </section>
 
         <section className="career-section">
@@ -300,45 +394,64 @@ export function CoachProfile() {
             </div>
           ) : (
             <div className="seasons-list">
-              {seasons.map((season) => (
-                <article className="season-card" key={season.id}>
-                  <div className="season-card-header">
-                    <div>
-                      <span className="season-year">
-                        {season.season || "Temporada não informada"}
+              {seasons.map((season) => {
+                const stats = getSeasonStats(season);
+
+                return (
+                  <article className="season-card" key={season.id}>
+                    <div className="season-card-header">
+                      <div>
+                        <span className="season-year">
+                          {season.season || "Temporada não informada"}
+                        </span>
+
+                        <h3>{season.teamName || "Equipe não informada"}</h3>
+                      </div>
+
+                      <span className="season-type">
+                        {season.teamType === "national" ? "SELEÇÃO" : "CLUBE"}
                       </span>
-
-                      <h3>{season.teamName || "Equipe não informada"}</h3>
                     </div>
 
-                    <span className="season-type">
-                      {season.teamType === "national" ? "SELEÇÃO" : "CLUBE"}
-                    </span>
-                  </div>
+                    <div className="season-stats">
+                      <div>
+                        <span>Jogos cadastrados</span>
+                        <strong>{stats.matches}</strong>
+                      </div>
 
-                  <div className="season-stats">
-                    <div>
-                      <span>Jogos</span>
-                      <strong>{Number(season.matches) || 0}</strong>
-                    </div>
+                      <div>
+                        <span>Jogos com resultado</span>
+                        <strong>{stats.playedMatches}</strong>
+                      </div>
 
-                    <div>
-                      <span>Vitórias</span>
-                      <strong>{Number(season.wins) || 0}</strong>
-                    </div>
+                      <div>
+                        <span>Vitórias</span>
+                        <strong>{stats.wins}</strong>
+                      </div>
 
-                    <div>
-                      <span>Empates</span>
-                      <strong>{Number(season.draws) || 0}</strong>
-                    </div>
+                      <div>
+                        <span>Empates</span>
+                        <strong>{stats.draws}</strong>
+                      </div>
 
-                    <div>
-                      <span>Derrotas</span>
-                      <strong>{Number(season.losses) || 0}</strong>
+                      <div>
+                        <span>Derrotas</span>
+                        <strong>{stats.losses}</strong>
+                      </div>
+
+                      <div>
+                        <span>Aproveitamento</span>
+                        <strong>{formatPercentage(stats.pointsPercentage)}</strong>
+                      </div>
+
+                      <div>
+                        <span>Taxa de vitórias</span>
+                        <strong>{formatPercentage(stats.winPercentage)}</strong>
+                      </div>
                     </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>

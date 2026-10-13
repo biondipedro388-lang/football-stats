@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { useNavigate, useParams } from "react-router-dom";
-import { db } from "../services/firebase";
+import { auth, db } from "../services/firebase";
 
 const countries = [
   { name: "Afeganistão", code: "AF" },
@@ -66,18 +67,27 @@ export default function EditCoach() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
     let active = true;
+    let unsubscribeAuth;
 
-    async function loadCoach() {
+    async function loadCoach(user) {
+      setLoading(true);
+      setError("");
+      setAuthorized(false);
+
       try {
         const coachDoc = await getDoc(doc(db, "coaches", id));
 
         if (!active) return;
 
-        if (!coachDoc.exists()) {
-          setError("Treinador não encontrado.");
+        if (
+          !coachDoc.exists() ||
+          coachDoc.data().ownerId !== user.uid
+        ) {
+          setError("Treinador não encontrado ou sem permissão para acessá-lo.");
           return;
         }
 
@@ -94,6 +104,7 @@ export default function EditCoach() {
         setNationality(country ? country.code : savedNationality);
         setBirthDate(coach.birthDate || "");
         setPreferredFormation(coach.preferredFormation || "");
+        setAuthorized(true);
       } catch (err) {
         console.error("Erro ao carregar treinador:", err);
 
@@ -107,16 +118,33 @@ export default function EditCoach() {
       }
     }
 
-    loadCoach();
+    unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (!active) return;
+
+      if (!user) {
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      loadCoach(user);
+    });
 
     return () => {
       active = false;
+      if (unsubscribeAuth) unsubscribeAuth();
     };
-  }, [id]);
+  }, [id, navigate]);
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
+
+    const user = auth.currentUser;
+
+    if (!user) {
+      navigate("/login", { replace: true });
+      return;
+    }
 
     if (
       !name.trim() ||
@@ -134,8 +162,12 @@ export default function EditCoach() {
       const coachRef = doc(db, "coaches", id);
       const coachDoc = await getDoc(coachRef);
 
-      if (!coachDoc.exists()) {
-        setError("Esse treinador não existe mais.");
+      if (
+        !coachDoc.exists() ||
+        coachDoc.data().ownerId !== user.uid
+      ) {
+        setError("Treinador não encontrado ou sem permissão para editá-lo.");
+        setAuthorized(false);
         return;
       }
 
@@ -182,7 +214,7 @@ export default function EditCoach() {
     );
   }
 
-  if (error === "Treinador não encontrado.") {
+  if (!authorized) {
     return (
       <div className="page">
         <header className="header">
@@ -202,8 +234,8 @@ export default function EditCoach() {
         </header>
 
         <div className="empty-state">
-          <h3>Treinador não encontrado</h3>
-          <p>Esse perfil pode ter sido removido.</p>
+          <h3>Não foi possível abrir o treinador</h3>
+          <p>{error || "Você não tem permissão para acessar este perfil."}</p>
 
           <button
             className="button"
